@@ -47,7 +47,6 @@ function kc_ml_admin_scripts($hook) {
             'nonce' => wp_create_nonce('kc_ml_nonce')
         ));
     }
-}
 
 function kc_ml_settings_page(){
     $s = get_option('kc_ml_api_key','');
@@ -76,7 +75,6 @@ function kc_ml_settings_page(){
         }else{
             echo '<div class="notice notice-error"><p>Error testing API key: '.esc_html($test_result['message']).'</p></div>';
     }
-        }
     } // FIXED: Added missing closing brace
     
     ?>
@@ -282,7 +280,6 @@ function kc_ml_run_component_test($component) {
             'message' => 'Test failed: ' . $e->getMessage()
         );
     }
-}
 
 function kc_ml_cron_setup(){
     if(get_option('kc_ml_enabled',0)){
@@ -292,7 +289,6 @@ function kc_ml_cron_setup(){
     }else{
         wp_clear_scheduled_hook('kc_ml_daily_run');
     }
-}
 
 add_action('init','kc_ml_cron_setup');
 add_action('kc_ml_daily_run','kc_ml_daily_run_function');
@@ -301,7 +297,6 @@ function kc_ml_daily_run_function(){
     if(get_option('kc_ml_enabled',0)){
         kc_ml_run_agent(10);
     }
-}
 
 add_action('admin_menu','kc_ml_add_admin_menu');
 
