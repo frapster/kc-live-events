@@ -11,10 +11,8 @@ defined('ABSPATH')||exit;
 require_once plugin_dir_path(__FILE__) . 'includes/class-api-handler.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-batch-processor.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-budget-monitor.php';
-require_once plugin_dir_path(__FILE__) . 'includes/class-bunny-client.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-jetengine-manager.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-prompt-builder.php';
-require_once plugin_dir_path(__FILE__) . 'includes/class-supabase-client.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-test-manager.php';
 
 // Enqueue admin styles and scripts
@@ -35,16 +33,7 @@ function kc_ml_settings_page(){
     $v=get_option('kc_ml_api_key_valid',0);
     $e=get_option('kc_ml_enabled',0);
     
-    // Supabase settings
-    $supabase_url = get_option('kc_ml_supabase_url', '');
-    $supabase_anon_key = get_option('kc_ml_supabase_anon_key', '');
-    $supabase_service_key = get_option('kc_ml_supabase_service_key', '');
-    $supabase_valid = get_option('kc_ml_supabase_valid', false);
     
-    // Bunny.net settings
-    $bunny_zone = get_option('kc_ml_bunny_zone', '');
-    $bunny_key = get_option('kc_ml_bunny_key', '');
-    $bunny_valid = get_option('kc_ml_bunny_valid', false);
     
     echo '<div class="wrap kc-ml-dashboard"><h1>KC Metro Live Settings</h1>';
     
@@ -66,57 +55,24 @@ function kc_ml_settings_page(){
         }
     }
     
-    // Handle Supabase save
-    if(isset($_POST['save_supabase'])){
-        $new_url = sanitize_text_field($_POST['supabase_url']);
-        $new_anon_key = sanitize_text_field($_POST['supabase_anon_key']);
-        $new_service_key = sanitize_text_field($_POST['supabase_service_key']);
-        
-        $supabase_client = new KC_ML_Supabase_Client();
-        $supabase_client->update_credentials($new_url, $new_anon_key, $new_service_key);
-        $test_result = $supabase_client->test_connection();
-        
-        if($test_result){
-            update_option('kc_ml_supabase_valid', true);
-            echo '<div class="notice notice-success"><p>Supabase connection successful!</p></div>';
-            $supabase_url=$new_url;$supabase_anon_key=$new_anon_key;$supabase_service_key=$new_service_key;$supabase_valid=true;
-        }else{
             echo '<div class="notice notice-error"><p>Supabase connection failed!</p></div>';
         }
     }
     
-    // Handle Bunny.net save
-    if(isset($_POST['save_bunny'])){
-        $new_zone = sanitize_text_field($_POST['bunny_zone']);
-        $new_key = sanitize_text_field($_POST['bunny_key']);
-        
-        update_option('kc_ml_bunny_zone', $new_zone);
-        update_option('kc_ml_bunny_key', $new_key);
-        
-        $bunny_client = new KC_ML_Bunny_Client();
-        $test_result = $bunny_client->test_connection();
-        
-        if($test_result){
-            update_option('kc_ml_bunny_valid', true);
-            echo '<div class="notice notice-success"><p>Bunny.net connection successful!</p></div>';
-            $bunny_zone=$new_zone;$bunny_key=$new_key;$bunny_valid=true;
-        }else{
             echo '<div class="notice notice-error"><p>Bunny.net connection failed!</p></div>';
         }
     }
     
     // Mask keys for display
     $masked_key = $s ? substr($s,0,4).str_repeat('.',12).substr($s,-4) : '';
-    $masked_anon = $supabase_anon_key ? substr($supabase_anon_key,0,8).str_repeat('.',20).substr($supabase_anon_key,-8) : '';
     $masked_service = $supabase_service_key ? substr($supabase_service_key,0,8).str_repeat('.',20).substr($supabase_service_key,-8) : '';
-    $masked_bunny = $bunny_key ? substr($bunny_key,0,8).str_repeat('.',20).substr($bunny_key,-8) : '';
     
     ?>
     <div class="kc-ml-settings-tabs">
         <h2 class="nav-tab-wrapper">
             <a href="#api-settings" class="nav-tab nav-tab-active">API Settings</a>
-            <a href="#database-settings" class="nav-tab">Database</a>
-            <a href="#cdn-settings" class="nav-tab">CDN Storage</a>
+            
+            
             <a href="#system-status" class="nav-tab">System Status</a>
         </h2>
         
@@ -133,36 +89,6 @@ function kc_ml_settings_page(){
             </div>
         </div>
         
-        <!-- Supabase Database Tab -->
-        <div id="database-settings" class="tab-content">
-            <div class="kc-ml-card">
-                <h2>Supabase Database Configuration</h2>
-                <form method="post">
-                    <p><label>Project URL: <input type="url" name="supabase_url" value="<?php echo esc_attr($supabase_url); ?>" style="width: 400px;" placeholder="https://yourproject.supabase.co"></label></p>
-                    <p><label>Anon/Public Key: <input type="text" name="supabase_anon_key" value="<?php echo esc_attr($masked_anon); ?>" style="width: 400px;" placeholder="eyJ..."></label></p>
-                    <p><label>Service Role Key: <input type="text" name="supabase_service_key" value="<?php echo esc_attr($masked_service); ?>" style="width: 400px;" placeholder="eyJ..."></label></p>
-                    <p class="description">Get these from your Supabase project Settings > API</p>
-                    <p><input type="submit" name="save_supabase" value="Save and Test Supabase" class="button button-primary"></p>
-                    <p>Status: <span class="status-indicator <?php echo $supabase_valid ? 'valid' : 'invalid'; ?>"><?php echo $supabase_valid ? '✅ Connected' : '❌ Not Connected'; ?></span></p>
-                </form>
-            </div>
-        </div>
-        
-        <!-- Bunny.net CDN Tab -->
-        <div id="cdn-settings" class="tab-content">
-            <div class="kc-ml-card">
-                <h2>Bunny.net CDN Configuration</h2>
-                <form method="post">
-                    <p><label>Storage Zone Name: <input type="text" name="bunny_zone" value="<?php echo esc_attr($bunny_zone); ?>" style="width: 300px;" placeholder="your-storage-zone"></label></p>
-                    <p><label>Storage Password: <input type="text" name="bunny_key" value="<?php echo esc_attr($masked_bunny); ?>" style="width: 400px;" placeholder="storage-password"></label></p>
-                    <p class="description">Get these from your Bunny.net Storage Zone settings</p>
-                    <p><input type="submit" name="save_bunny" value="Save and Test Bunny.net" class="button button-primary"></p>
-                    <p>Status: <span class="status-indicator <?php echo $bunny_valid ? 'valid' : 'invalid'; ?>"><?php echo $bunny_valid ? '✅ Connected' : '❌ Not Connected'; ?></span></p>
-                </form>
-            </div>
-        </div>
-        
-        <!-- System Status Tab -->
         <div id="system-status" class="tab-content">
             <div class="kc-ml-card">
                 <h2>System Status</h2>
@@ -178,8 +104,6 @@ function kc_ml_settings_page(){
                 
                 <h3>API Connections</h3>
                 <p>xAI API: <span class="status-indicator <?php echo $v ? 'valid' : 'invalid'; ?>"><?php echo $v ? '✅ Connected' : '❌ Not Connected'; ?></span></p>
-                <p>Supabase: <span class="status-indicator <?php echo $supabase_valid ? 'valid' : 'invalid'; ?>"><?php echo $supabase_valid ? '✅ Connected' : '❌ Not Connected'; ?></span></p>
-                <p>Bunny.net: <span class="status-indicator <?php echo $bunny_valid ? 'valid' : 'invalid'; ?>"><?php echo $bunny_valid ? '✅ Connected' : '❌ Not Connected'; ?></span></p>
             </div>
         </div>
     </div>
@@ -262,8 +186,8 @@ function kc_ml_control_page(){
     echo '<form method="post">';
     echo '<p><select name="component_type">';
     echo '<option value="api">API Handler</option>';
-    echo '<option value="supabase">Supabase Client</option>';
-    echo '<option value="bunny">Bunny.net CDN</option>';
+    echo '';
+    echo '';
     echo '<option value="jetengine">JetEngine Manager</option>';
     echo '<option value="prompts">Prompt Builder</option>';
     echo '</select></p>';
@@ -308,14 +232,14 @@ function kc_ml_get_log_data(){
 
 function kc_ml_run_agent($limit) {
     // Initialize all components
-    $supabase_client = new KC_ML_Supabase_Client();
+    
     $api_handler = new KC_ML_API_Handler();
-    $bunny_client = new KC_ML_Bunny_Client();
+    
     $jetengine_manager = new KC_ML_JetEngine_Manager();
-    $batch_processor = new KC_ML_Batch_Processor($supabase_client);
+    $batch_processor = new KC_ML_Batch_Processor();
     
     // Check budget before running
-    $budget_monitor = new KC_ML_Budget_Monitor($supabase_client);
+    $budget_monitor = new KC_ML_Budget_Monitor();
     if (!$budget_monitor->can_afford_operation('daily_batch_' . $limit . '_events')) {
         return 'Daily budget exceeded. Agent run cancelled.';
     }
@@ -334,16 +258,16 @@ function kc_ml_run_agent($limit) {
 
 function kc_ml_run_component_test($component) {
     try {
-        $supabase_client = new KC_ML_Supabase_Client();
+        
         $api_handler = new KC_ML_API_Handler();
-        $bunny_client = new KC_ML_Bunny_Client();
+        
         $jetengine_manager = new KC_ML_JetEngine_Manager();
-        $batch_processor = new KC_ML_Batch_Processor($supabase_client);
+        $batch_processor = new KC_ML_Batch_Processor();
         
         $test_manager = new KC_ML_Test_Manager(
             $api_handler,
-            $supabase_client,
-            $bunny_client,
+            null,
+            null,
             $jetengine_manager,
             $batch_processor
         );
@@ -387,14 +311,14 @@ function kc_ml_add_admin_menu(){
 
 // Custom hooks for linear batch processing
 add_action('kc_events_batch_complete', function() {
-    $supabase_client = new KC_ML_Supabase_Client();
-    $batch_processor = new KC_ML_Batch_Processor($supabase_client);
+    
+    $batch_processor = new KC_ML_Batch_Processor();
     $batch_processor->process_venues_batch();
 });
 
 add_action('kc_venues_batch_complete', function() {
-    $supabase_client = new KC_ML_Supabase_Client();
-    $batch_processor = new KC_ML_Batch_Processor($supabase_client);
+    
+    $batch_processor = new KC_ML_Batch_Processor();
     $batch_processor->process_performers_batch();
 });
 

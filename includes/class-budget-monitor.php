@@ -12,8 +12,8 @@ class KC_ML_Budget_Monitor {
     private $daily_limit;
     private $operation_costs;
     
-    public function __construct($supabase_client = null) {
-        $this->supabase_client = $supabase_client;
+    public function __construct() {
+        
         $this->daily_limit = get_option('kc_ml_daily_budget_limit', 10.00);
         
         // Define estimated costs for different operations
