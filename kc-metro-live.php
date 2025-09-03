@@ -9,8 +9,8 @@ defined('ABSPATH')||exit;
 
 // Include required files from includes folder (removing Supabase/Bunny references)
 require_once plugin_dir_path(__FILE__) . 'includes/class-api-handler.php';
-require_once plugin_dir_path(__FILE__) . 'includes/class-batch-processor.php';
-require_once plugin_dir_path(__FILE__) . 'includes/class-budget-monitor.php';
+// require_once plugin_dir_path(__FILE__) . 'includes/class-batch-processor.php';
+// // require_once plugin_dir_path(__FILE__) . 'includes/class-budget-monitor.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-jetengine-manager.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-prompt-builder.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-test-manager.php';
