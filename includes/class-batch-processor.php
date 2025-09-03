@@ -11,8 +11,8 @@ class KC_ML_Batch_Processor {
     private $supabase_client;
     private $current_session_id;
     
-    public function __construct($supabase_client) {
-        $this->supabase_client = $supabase_client;
+    public function __construct() {
+        
     }
     
     /**
