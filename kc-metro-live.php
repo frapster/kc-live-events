@@ -75,6 +75,7 @@ function kc_ml_settings_page(){
             $masked_key = str_repeat('*', 20) . substr($s, -4);
         }else{
             echo '<div class="notice notice-error"><p>Error testing API key: '.esc_html($test_result['message']).'</p></div>';
+    }
         }
     } // FIXED: Added missing closing brace
     
