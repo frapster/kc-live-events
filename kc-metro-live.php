@@ -52,20 +52,8 @@ function kc_ml_settings_page(){
             $s=$k;$v=1;
         }else{
             echo '<div class="notice notice-error"><p>Error testing API key: '.esc_html($test_result['message']).'</p></div>';
-        }
-    }
     
-            echo '<div class="notice notice-error"><p>Supabase connection failed!</p></div>';
         }
-    }
-    
-            echo '<div class="notice notice-error"><p>Bunny.net connection failed!</p></div>';
-        }
-    }
-    
-    // Mask keys for display
-    $masked_key = $s ? substr($s,0,4).str_repeat('.',12).substr($s,-4) : '';
-    $masked_service = $supabase_service_key ? substr($supabase_service_key,0,8).str_repeat('.',20).substr($supabase_service_key,-8) : '';
     
     ?>
     <div class="kc-ml-settings-tabs">
@@ -79,7 +67,7 @@ function kc_ml_settings_page(){
         <!-- xAI API Settings Tab -->
         <div id="api-settings" class="tab-content active">
             <div class="kc-ml-card">
-                <h2>xAI API Configuration</h2>
+                <h2>OpenAI API Configuration</h2>
                 <form method="post">
                     <p><label>xAI API Key: <input type="text" name="kc_ml_api_key" value="<?php echo esc_attr($masked_key); ?>" style="width: 400px;"></label></p>
                     <p class="description">Get your API key from <a href="https://console.x.ai" target="_blank">https://console.x.ai</a></p>
