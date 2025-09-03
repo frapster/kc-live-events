@@ -7,7 +7,7 @@ Author: Rob Floyd
 
 defined('ABSPATH')||exit; 
 
-// Include ALL required files from includes folder
+// Include required files from includes folder (removing Supabase/Bunny references)
 require_once plugin_dir_path(__FILE__) . 'includes/class-api-handler.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-batch-processor.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-budget-monitor.php';
@@ -15,12 +15,33 @@ require_once plugin_dir_path(__FILE__) . 'includes/class-jetengine-manager.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-prompt-builder.php';
 require_once plugin_dir_path(__FILE__) . 'includes/class-test-manager.php';
 
-// Enqueue admin styles and scripts
+// Plugin activation hook
+register_activation_hook(__FILE__, 'kc_ml_activate_plugin');
+
+function kc_ml_activate_plugin() {
+    // Set default options
+    add_option('kc_ml_enabled', 0);
+    add_option('kc_ml_daily_budget_limit', 10.00);
+    add_option('kc_ml_api_key', '');
+    add_option('kc_ml_api_key_valid', 0);
+    
+    // Create upload directory
+    $upload_dir = wp_upload_dir();
+    $kc_dir = $upload_dir['basedir'] . '/kc-metro-live';
+    if (!file_exists($kc_dir)) {
+        wp_mkdir_p($kc_dir);
+    }
+    
+    // Clear any existing cron jobs
+    wp_clear_scheduled_hook('kc_ml_daily_run');
+}
+
+// Enqueue admin styles and scripts (FIXED PATHS)
 add_action('admin_enqueue_scripts', 'kc_ml_admin_scripts');
 function kc_ml_admin_scripts($hook) {
     if (strpos($hook, 'kc-ml') !== false) {
-        wp_enqueue_style('kc-ml-admin', plugin_dir_url(__FILE__) . 'includes/admin.css', array(), '1.0');
-        wp_enqueue_script('kc-ml-admin', plugin_dir_url(__FILE__) . 'includes/admin.js', array('jquery'), '1.0', true);
+        wp_enqueue_style('kc-ml-admin', plugin_dir_url(__FILE__) . 'assets/admin.css', array(), '1.0');
+        wp_enqueue_script('kc-ml-admin', plugin_dir_url(__FILE__) . 'assets/admin.js', array('jquery'), '1.0', true);
         wp_localize_script('kc-ml-admin', 'kcml_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('kc_ml_nonce')
@@ -29,17 +50,18 @@ function kc_ml_admin_scripts($hook) {
 }
 
 function kc_ml_settings_page(){
-    $s=get_option('kc_ml_api_key','');
-    $v=get_option('kc_ml_api_key_valid',0);
-    $e=get_option('kc_ml_enabled',0);
+    $s = get_option('kc_ml_api_key','');
+    $v = get_option('kc_ml_api_key_valid',0);
+    $e = get_option('kc_ml_enabled',0);
     
-    
+    // Create masked key for display
+    $masked_key = !empty($s) ? str_repeat('*', 20) . substr($s, -4) : '';
     
     echo '<div class="wrap kc-ml-dashboard"><h1>KC Metro Live Settings</h1>';
     
-    // Handle xAI API key save
+    // Handle OpenAI API key save
     if(isset($_POST['save_kc_ml_api'])){
-        $k=sanitize_text_field($_POST['kc_ml_api_key']);
+        $k = sanitize_text_field($_POST['kc_ml_api_key']);
         
         // Initialize API handler for testing
         $api_handler = new KC_ML_API_Handler();
@@ -50,27 +72,26 @@ function kc_ml_settings_page(){
             update_option('kc_ml_api_key_valid',1);
             echo '<div class="notice notice-success"><p>API key valid and saved!</p></div>';
             $s=$k;$v=1;
+            $masked_key = str_repeat('*', 20) . substr($s, -4);
         }else{
             echo '<div class="notice notice-error"><p>Error testing API key: '.esc_html($test_result['message']).'</p></div>';
-    
         }
+    } // FIXED: Added missing closing brace
     
     ?>
     <div class="kc-ml-settings-tabs">
         <h2 class="nav-tab-wrapper">
             <a href="#api-settings" class="nav-tab nav-tab-active">API Settings</a>
-            
-            
             <a href="#system-status" class="nav-tab">System Status</a>
         </h2>
         
-        <!-- xAI API Settings Tab -->
+        <!-- OpenAI API Settings Tab -->
         <div id="api-settings" class="tab-content active">
             <div class="kc-ml-card">
                 <h2>OpenAI API Configuration</h2>
                 <form method="post">
-                    <p><label>xAI API Key: <input type="text" name="kc_ml_api_key" value="<?php echo esc_attr($masked_key); ?>" style="width: 400px;"></label></p>
-                    <p class="description">Get your API key from <a href="https://console.x.ai" target="_blank">https://console.x.ai</a></p>
+                    <p><label>OpenAI API Key: <input type="text" name="kc_ml_api_key" value="<?php echo esc_attr($masked_key); ?>" style="width: 400px;"></label></p>
+                    <p class="description">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a></p>
                     <p><input type="submit" name="save_kc_ml_api" value="Save and Test API Key" class="button button-primary"></p>
                     <p>Status: <span class="status-indicator <?php echo $v ? 'valid' : 'invalid'; ?>"><?php echo $v ? '✅ Valid' : '❌ Not Valid'; ?></span></p>
                 </form>
@@ -91,7 +112,7 @@ function kc_ml_settings_page(){
                 <p>Relations Ready: <span class="status-indicator <?php echo $jetengine_status['relations_ready'] ? 'valid' : 'invalid'; ?>"><?php echo $jetengine_status['relations_ready'] ? '✅ Ready' : '❌ Not Ready'; ?></span></p>
                 
                 <h3>API Connections</h3>
-                <p>xAI API: <span class="status-indicator <?php echo $v ? 'valid' : 'invalid'; ?>"><?php echo $v ? '✅ Connected' : '❌ Not Connected'; ?></span></p>
+                <p>OpenAI API: <span class="status-indicator <?php echo $v ? 'valid' : 'invalid'; ?>"><?php echo $v ? '✅ Connected' : '❌ Not Connected'; ?></span></p>
             </div>
         </div>
     </div>
@@ -99,9 +120,7 @@ function kc_ml_settings_page(){
     <div class="kc-ml-setup-guide">
         <h2>Setup Instructions</h2>
         <ol>
-            <li>Get xAI API key from <a href="https://console.x.ai" target="_blank">console.x.ai</a> and configure above</li>
-            <li>Create Supabase project and configure database connection</li>
-            <li>Set up Bunny.net storage zone for images (optional)</li>
+            <li>Get OpenAI API key from <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a> and configure above</li>
             <li>Set up JetEngine CCTs: venues, performers, events, notes</li>
             <li>Create sentiment_words taxonomy in JetEngine</li>
             <li>Use the Control tab to test and run the agent</li>
@@ -110,17 +129,17 @@ function kc_ml_settings_page(){
     
     </div>
     <?php
-}
+} // FIXED: Added missing closing brace
 
 function kc_ml_control_page(){
-    $e=get_option('kc_ml_enabled',0);
-    $l=kc_ml_get_log_data();
+    $e = get_option('kc_ml_enabled',0);
+    $l = kc_ml_get_log_data();
     
     // Handle test runs
     if(isset($_POST['run_kc_ml'])){
-        $n=intval($_POST['kc_ml_limit']);
+        $n = intval($_POST['kc_ml_limit']);
         if($n<1)$n=1;
-        $r=kc_ml_run_agent($n);
+        $r = kc_ml_run_agent($n);
         echo '<div class="notice notice-success"><p>'.wp_kses_post($r).'</p></div>';
     }
     
@@ -132,7 +151,7 @@ function kc_ml_control_page(){
     }
     
     if(isset($_POST['save_kc_ml_toggle'])){
-        $e=isset($_POST['kc_ml_enabled'])?1:0;
+        $e = isset($_POST['kc_ml_enabled'])?1:0;
         update_option('kc_ml_enabled',$e);
         kc_ml_cron_setup();
         echo '<div class="notice notice-success"><p>Agent toggle saved!</p></div>';
@@ -174,8 +193,6 @@ function kc_ml_control_page(){
     echo '<form method="post">';
     echo '<p><select name="component_type">';
     echo '<option value="api">API Handler</option>';
-    echo '';
-    echo '';
     echo '<option value="jetengine">JetEngine Manager</option>';
     echo '<option value="prompts">Prompt Builder</option>';
     echo '</select></p>';
@@ -204,8 +221,8 @@ function kc_ml_control_page(){
 }
 
 function kc_ml_get_log_data(){
-    $l=get_option('kc_ml_run_logs',[]);
-    $t=time();
+    $l = get_option('kc_ml_run_logs',[]);
+    $t = time();
     $c24=0;$c7=0;$c30=0;$c90=0;$last_run=0;
     
     foreach($l as $r){
@@ -219,10 +236,8 @@ function kc_ml_get_log_data(){
 }
 
 function kc_ml_run_agent($limit) {
-    // Initialize all components
-    
+    // Initialize components (removed Supabase references)
     $api_handler = new KC_ML_API_Handler();
-    
     $jetengine_manager = new KC_ML_JetEngine_Manager();
     $batch_processor = new KC_ML_Batch_Processor();
     
@@ -246,16 +261,14 @@ function kc_ml_run_agent($limit) {
 
 function kc_ml_run_component_test($component) {
     try {
-        
         $api_handler = new KC_ML_API_Handler();
-        
         $jetengine_manager = new KC_ML_JetEngine_Manager();
         $batch_processor = new KC_ML_Batch_Processor();
         
         $test_manager = new KC_ML_Test_Manager(
             $api_handler,
-            null,
-            null,
+            null, // No Supabase
+            null, // No Bunny.net
             $jetengine_manager,
             $batch_processor
         );
@@ -299,13 +312,11 @@ function kc_ml_add_admin_menu(){
 
 // Custom hooks for linear batch processing
 add_action('kc_events_batch_complete', function() {
-    
     $batch_processor = new KC_ML_Batch_Processor();
     $batch_processor->process_venues_batch();
 });
 
 add_action('kc_venues_batch_complete', function() {
-    
     $batch_processor = new KC_ML_Batch_Processor();
     $batch_processor->process_performers_batch();
 });
